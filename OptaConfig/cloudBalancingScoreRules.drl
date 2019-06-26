@@ -1,0 +1,86 @@
+package com.sofarwebapp.jersey;
+    dialect "java"
+
+import org.optaplanner.core.api.score.buildin.hardsoft.HardSoftScoreHolder;
+
+import org.optaplanner.examples.cloudbalancing.domain.CloudBalance;
+import org.optaplanner.examples.cloudbalancing.domain.CloudBus;
+import org.optaplanner.examples.cloudbalancing.domain.CloudRoute;
+
+global HardSoftScoreHolder scoreHolder;
+
+// ############################################################################
+// Hard constraints                                                           #
+// ############################################################################
+
+rule "conflictingStartBusTooSmall"
+when
+    $bus : CloudBus($capacity:capacity);
+    $pr : CloudRoute(bus==$bus,$demand:demand>$capacity);
+then
+    scoreHolder.addHardConstraintMatch(kcontext, $capacity-$demand);
+end
+
+rule "conflictingTimingCaseOne"
+when
+    $bus : CloudBus();
+    $routeA : CloudRoute(bus==$bus,$startTimeA:startTime, $travelTimeA:travelTime);
+    $routeB : CloudRoute(id!=$routeA.id,bus==$bus, $startTimeB:startTime, $startTimeA<=$startTimeB && ($startTimeA + $travelTimeA + $bus.delayBetweenTrips($routeA,$routeB))>$startTimeB);
+then
+    scoreHolder.addHardConstraintMatch(kcontext, -Math.abs(($startTimeA + $travelTimeA + $bus.delayBetweenTrips($routeA,$routeB)) - $startTimeB));
+end
+
+rule "conflictingTimingCaseTwo"
+when
+    $bus : CloudBus();
+    $routeA : CloudRoute(bus==$bus,$startTimeA:startTime);
+    $routeB : CloudRoute(id!=$routeA.id,bus==$bus, $startTimeB:startTime, $endTimeB:endTime,  $travelTimeB:travelTime, $startTimeB<=$startTimeA && ($startTimeB +  $travelTimeB + $bus.delayBetweenTrips($routeB,$routeA))>$startTimeA);
+then
+    scoreHolder.addHardConstraintMatch(kcontext, -Math.abs(($startTimeB +  $travelTimeB + $bus.delayBetweenTrips($routeB,$routeA)) - $startTimeA));
+end
+
+// rule "conflictingTimingCaseOne"
+// when
+//     $bus : CloudBus();
+//     $routeA : CloudRoute(bus==$bus,$startTimeA:startTime,$endTimeA:endTime);
+//     $routeB : CloudRoute(id>$routeA.id,bus==$bus, $startTimeB:startTime, $startTimeA<=$startTimeB && ($endTimeA + $bus.delayBetweenTrips($routeA,$routeB))>$startTimeB);
+// then
+//     scoreHolder.addHardConstraintMatch(kcontext, -Math.abs(($endTimeA + $bus.delayBetweenTrips($routeA,$routeB)) - $startTimeB));
+// end
+
+// rule "conflictingTimingCaseTwo"
+// when
+//     $bus : CloudBus();
+//     $routeA : CloudRoute(bus==$bus,$startTimeA:startTime);
+//     $routeB : CloudRoute(id>$routeA.id,bus==$bus, $startTimeB:startTime, $endTimeB:endTime, $startTimeB<=$startTimeA && ($endTimeB + $bus.delayBetweenTrips($routeB,$routeA))>$startTimeA);
+// then
+//     scoreHolder.addHardConstraintMatch(kcontext, -Math.abs(($endTimeB + $bus.delayBetweenTrips($routeB,$routeA)) - $startTimeA));
+// end
+
+// // ############################################################################
+// // Soft constraints                                                           #
+// // ############################################################################
+
+// rule "balanseTransfers"
+// when
+//     $bus : CloudBus($transfers : transfers);
+//     exists CloudRoute(bus == $bus)
+// then
+//     scoreHolder.addSoftConstraintMatch(kcontext, -$transfers);
+// end
+
+// rule "busCost"
+// when
+//     $bus : CloudBus($cost : cost)
+//     exists CloudRoute(bus == $bus)
+// then
+//     scoreHolder.addSoftConstraintMatch(kcontext, -$cost);
+// end
+
+rule "busCapacity"
+when
+    $bus : CloudBus($capacity : capacity)
+    exists CloudRoute(bus == $bus)
+then
+    scoreHolder.addSoftConstraintMatch(kcontext, -$capacity);
+end
